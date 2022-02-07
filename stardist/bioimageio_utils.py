@@ -11,16 +11,16 @@ DEEPIMAGEJ_MACRO = \
 //*******************************************************************
 // Date: July-2021
 // Credits: StarDist, DeepImageJ
-// URL: 
+// URL:
 //      https://github.com/stardist/stardist
 //      https://deepimagej.github.io/deepimagej
 // This macro was adapted from
 // https://github.com/deepimagej/imagej-macros/blob/648caa867f6ccb459649d4d3799efa1e2e0c5204/StarDist2D_Post-processing.ijm
 // Please cite the respective contributions when using this code.
 //*******************************************************************
-//  Macro to run StarDist postprocessing on 2D images. 
+//  Macro to run StarDist postprocessing on 2D images.
 //  StarDist and deepImageJ plugins need to be installed.
-//  The macro assumes that the image to process is a stack in which 
+//  The macro assumes that the image to process is a stack in which
 //  the first channel corresponds to the object probability map
 //  and the remaining channels are the radial distances from each
 //  pixel to the object boundary.
@@ -211,7 +211,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
 
     weights_file = outdir / "stardist_weights.h5"
     model.keras_model.save_weights(str(weights_file))
-    
+
     config = dict(
         stardist=dict(
             python_version=package_data["Version"],
@@ -220,7 +220,7 @@ def _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, 
             config=vars(model.config),
         )
     )
-    
+
     if is_2D:
         macro_file = outdir / "stardist_postprocessing.ijm"
         with open(str(macro_file), 'w', encoding='utf-8') as f:
@@ -342,14 +342,19 @@ def export_bioimageio(
         raise ValueError(f"outpath has to be a folder or zip file, got {outpath}")
     outdir.mkdir(exist_ok=True, parents=True)
 
-    kwargs = _get_stardist_metadata(outdir)
-    model_kwargs = _get_weights_and_model_metadata(outdir, model, test_input, test_input_axes, test_input_norm_axes, mode,
+    # NOTE this only works for tmp path that are not beneath the current cwd;
+    # for tmp path beneath the current cwd the resolution of filepath in bioimageio runs into issues
+    tmp_dir = Path("~/.stardist-bioiamgeio").expanduser()
+    tmp_dir.mkdir(exist_ok=True)
+
+    kwargs = _get_stardist_metadata(tmp_dir)
+    model_kwargs = _get_weights_and_model_metadata(tmp_dir, model, test_input, test_input_axes, test_input_norm_axes, mode,
                                                    min_percentile=min_percentile, max_percentile=max_percentile)
     kwargs.update(model_kwargs)
     if overwrite_spec_kwargs is not None:
         kwargs.update(overwrite_spec_kwargs)
 
-    build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim==2), **kwargs)
+    build_model(name=name, output_path=zip_path, add_deepimagej_config=(model.config.n_dim == 2), root=tmp_dir, **kwargs)
 
 
 def import_bioimageio(source, outpath):
@@ -370,7 +375,7 @@ def import_bioimageio(source, outpath):
     StarDist2D or StarDist3D
         stardist model loaded from `outpath`
 
-    """    
+    """
     import shutil
     from csbdeep.utils import save_json
     from .models import StarDist2D, StarDist3D
